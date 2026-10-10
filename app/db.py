@@ -45,10 +45,12 @@ CREATE TABLE IF NOT EXISTS payment_links (
 );
 
 -- Mock WhatsApp. 'out' = shop -> customer, 'in' = customer -> shop.
+-- 'kind' lets the trust score count reminders without parsing message text.
 CREATE TABLE IF NOT EXISTS messages (
     id          INTEGER PRIMARY KEY AUTOINCREMENT,
     customer_id INTEGER NOT NULL REFERENCES customers(id),
     direction   TEXT    NOT NULL CHECK (direction IN ('out', 'in')),
+    kind        TEXT    NOT NULL DEFAULT 'other' CHECK (kind IN ('reminder', 'thank_you', 'other')),
     body        TEXT    NOT NULL,
     created_at  TEXT    NOT NULL DEFAULT (datetime('now', 'localtime'))
 );
@@ -86,4 +88,19 @@ def init_db(db_path: str | None = None) -> None:
     # closing() guarantees the connection is closed even if the script fails.
     with closing(get_connection(db_path)) as conn:
         conn.executescript(SCHEMA)
+        _migrate(conn)
         conn.commit()
+
+
+def _migrate(conn: sqlite3.Connection) -> None:
+    """Bring databases created by older versions of this code up to date.
+
+    CREATE TABLE IF NOT EXISTS never changes a table that already exists, so
+    columns added later must be added with ALTER TABLE.
+    """
+    message_columns = {row["name"] for row in conn.execute("PRAGMA table_info(messages)")}
+    if "kind" not in message_columns:  # added in Step 5
+        conn.execute(
+            "ALTER TABLE messages ADD COLUMN kind TEXT NOT NULL DEFAULT 'other' "
+            "CHECK (kind IN ('reminder', 'thank_you', 'other'))"
+        )

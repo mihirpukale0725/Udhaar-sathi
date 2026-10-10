@@ -152,6 +152,7 @@ app/
   khata.py      Ledger rules: udhaar, payments, fuzzy names, FIFO
   agent.py      Gemini function calling, tool execution, Hinglish replies
   rules.py      Regex fallback parser (Hinglish / Marathi / English)
+  hindi.py      Devanagari to Latin letters, Hindi number words to digits
   payments.py   Payment links, reminders, fake gateway, signed webhook
   insights.py   Trust score and dashboard insights
   seed.py       Demo data: 8 customers, 30 days of sales
@@ -271,8 +272,9 @@ Render serves the app over HTTPS, so voice input also works from a phone there.
 
 ## Limitations and next steps
 
-- **Devanagari and number words** ("रमेश", "paanch sau") need Gemini; the offline rules
-  only understand romanized text with digits.
+- **The offline rules handle Devanagari and simple number words** ("रमेश को पाँच सौ उधार
+  दिया") through a lightweight transliterator, but Marathi suffixes joined to a name
+  ("रमेशला") and complex numbers ("पचहत्तर") still need Gemini.
 - **"sabko reminder bhejo" lowers everyone's trust score**, even customers who weren't late.
   A fairer version would only count reminders sent after the grace period.
 - **SQLite** is right for one shop on one machine; multiple shops would need Postgres

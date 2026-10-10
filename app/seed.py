@@ -1,4 +1,4 @@
-"""Fill the database with realistic demo data.
+﻿"""Fill the database with realistic demo data.
 
 Run with:  python -m app.seed
 (It wipes existing data first, so it is safe to re-run.)
@@ -6,7 +6,7 @@ Run with:  python -m app.seed
 What it creates:
 - 8 customers, each with a repayment "habit" that drives their ledger history.
   The trust score (a later step) should be able to tell these habits apart.
-- 30 days of fake UPI sales with realistic hourly patterns:
+- 30 days (plus today so far) of fake UPI sales with realistic hourly patterns:
   morning and evening rush, busier weekends, and Sunday evenings busiest.
 
 A fixed random seed makes the data identical on every run, so tests and
@@ -44,6 +44,9 @@ PAY_DELAY_DAYS = {
 
 ITEMS = ["atta, dal", "rice 5kg", "oil, sugar", "milk, bread", "masala, tea",
          "soap, detergent", "biscuits, namkeen", "grocery"]
+
+# How many reminders each habit needed in the past (feeds the trust score).
+REMINDERS_SENT = {"punctual": (0, 0), "regular": (1, 1), "slow": (2, 3), "overdue": (3, 5)}
 
 HISTORY_DAYS = 60   # how far back the udhaar history goes
 SALES_DAYS = 30
@@ -89,18 +92,27 @@ def build_ledger(customer: dict, now: datetime, rng: random.Random) -> list[tupl
     return sorted(rows, key=lambda r: r[3])
 
 
+def build_reminders(customer: dict, now: datetime, rng: random.Random) -> list[tuple]:
+    """Return (body, created_at) rows for past reminders, spread over the last 60 days."""
+    count = rng.randint(*REMINDERS_SENT[customer["habit"]])
+    days = sorted(rng.sample(range(1, HISTORY_DAYS + 1), count), reverse=True)
+    body = f"Namaste {customer['name']} ji, aapka udhaar baaki hai. Kripya jaldi chuka dein."
+    return [(body, _at(now - timedelta(days=d), rng.randint(9, 20), rng.randint(0, 59))) for d in days]
+
+
 # Relative footfall per hour of the day (store open 7 AM - 10 PM).
-# Two peaks: morning (milk, bread) and evening (dinner groceries).
+# Two peaks: a morning rush (milk, bread) and a bigger evening rush (dinner groceries).
 HOURLY_WEIGHTS = {
-    7: 6, 8: 9, 9: 8, 10: 5, 11: 4, 12: 4, 13: 3, 14: 2,
-    15: 3, 16: 4, 17: 6, 18: 9, 19: 10, 20: 8, 21: 4,
+    7: 6, 8: 8, 9: 7, 10: 5, 11: 4, 12: 4, 13: 3, 14: 2,
+    15: 3, 16: 4, 17: 6, 18: 10, 19: 13, 20: 9, 21: 4,
 }
 
 
 def build_sales(now: datetime, rng: random.Random) -> list[tuple]:
-    """Return (amount, created_at) rows for the last SALES_DAYS days."""
+    """Return (amount, created_at) rows for the last SALES_DAYS full days, plus
+    today up to the current time (so "aaj kitna aaya?" has an answer in demos)."""
     rows = []
-    for days_ago in range(1, SALES_DAYS + 1):
+    for days_ago in range(0, SALES_DAYS + 1):
         day = now - timedelta(days=days_ago)
         weekday = day.weekday()  # Monday=0 ... Sunday=6
 
@@ -118,7 +130,9 @@ def build_sales(now: datetime, rng: random.Random) -> list[tuple]:
         for hour in hours:
             # Log-normal gives many small bills and a few big ones (median ~Rs 90).
             amount = max(10, min(2000, round(rng.lognormvariate(4.5, 0.7))))
-            rows.append((amount, _at(day, hour, rng.randint(0, 59))))
+            created_at = _at(day, hour, rng.randint(0, 59))
+            if created_at <= now.strftime("%Y-%m-%d %H:%M:%S"):  # no sales from the future
+                rows.append((amount, created_at))
 
     return sorted(rows, key=lambda r: r[1])
 
@@ -148,6 +162,11 @@ def seed(db_path: str | None = None, rng_seed: int = 42) -> None:
                     "INSERT INTO ledger (customer_id, type, amount, note, created_at) VALUES (?, ?, ?, ?, ?)",
                     [(customer_id, *row) for row in build_ledger(customer, now, rng)],
                 )
+                conn.executemany(
+                    "INSERT INTO messages (customer_id, direction, kind, body, created_at) "
+                    "VALUES (?, 'out', 'reminder', ?, ?)",
+                    [(customer_id, *row) for row in build_reminders(customer, now, rng)],
+                )
 
             conn.executemany(
                 "INSERT INTO sales (amount, created_at) VALUES (?, ?)",
@@ -174,4 +193,4 @@ if __name__ == "__main__":
         ):
             print(f"  {row['name']:<16} Rs {row['balance']}")
         n_sales = conn.execute("SELECT COUNT(*) FROM sales").fetchone()[0]
-        print(f"Seeded {n_sales} UPI sales over {SALES_DAYS} days.")
+        print(f"Seeded {n_sales} UPI sales over the last {SALES_DAYS} days + today so far.")

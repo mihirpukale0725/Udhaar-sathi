@@ -16,6 +16,7 @@ Rules enforced here:
 import difflib
 import re
 import sqlite3
+from collections import deque
 from datetime import date, datetime
 
 # Upper limit per entry. Voice input can mishear "500" as "50000"; a kirana
@@ -124,29 +125,63 @@ def get_balance(conn: sqlite3.Connection, customer_id: int) -> int:
     ).fetchone()[0]
 
 
-def days_pending(conn: sqlite3.Connection, customer_id: int, today: date | None = None) -> int | None:
-    """Age in days of the oldest udhaar that is not yet fully paid, or None.
-
-    Payments aren't linked to specific udhaar entries, so we use FIFO: every
-    payment settles the oldest udhaar first. That's how a shopkeeper thinks
-    about it too ("purana pehle chukta hota hai": old dues get paid first).
-    """
-    today = today or date.today()
-    rows = conn.execute(
+def ledger_rows(conn: sqlite3.Connection, customer_id: int) -> list[sqlite3.Row]:
+    """A customer's ledger in time order."""
+    return conn.execute(
         "SELECT type, amount, created_at FROM ledger WHERE customer_id = ? ORDER BY created_at, id",
         (customer_id,),
     ).fetchall()
 
-    paid = sum(r["amount"] for r in rows if r["type"] == "payment")
+
+def _to_date(timestamp: str) -> date:
+    return datetime.strptime(timestamp, "%Y-%m-%d %H:%M:%S").date()
+
+
+def fifo_settle(rows: list[sqlite3.Row]) -> tuple[list[int], date | None]:
+    """Match payments to udhaar entries, oldest udhaar first (FIFO).
+
+    Payments aren't linked to specific udhaar entries, so we assume every
+    payment settles the oldest dues first. That's how a shopkeeper thinks
+    about it too ("purana pehle chukta hota hai": old dues get paid first).
+
+    Returns:
+        repay_days:  for each fully settled udhaar, how many days it took to repay
+        oldest_open: date of the oldest udhaar not yet fully paid (None if all paid)
+    """
+    open_items: deque[list] = deque()  # [udhaar_date, amount_still_unpaid], oldest first
+    advance = 0                        # money paid beyond what was owed
+    repay_days: list[int] = []
+
     for r in rows:
-        if r["type"] != "udhaar":
-            continue
-        if paid >= r["amount"]:
-            paid -= r["amount"]          # this udhaar is fully settled
+        day = _to_date(r["created_at"])
+        if r["type"] == "udhaar":
+            covered = min(advance, r["amount"])  # an earlier advance pays this immediately
+            advance -= covered
+            if covered == r["amount"]:
+                repay_days.append(0)
+            else:
+                open_items.append([day, r["amount"] - covered])
         else:
-            created = datetime.strptime(r["created_at"], "%Y-%m-%d %H:%M:%S").date()
-            return (today - created).days
-    return None
+            money = r["amount"]
+            while money > 0 and open_items:
+                item = open_items[0]
+                used = min(money, item[1])
+                item[1] -= used
+                money -= used
+                if item[1] == 0:                      # this udhaar is now fully paid
+                    repay_days.append((day - item[0]).days)
+                    open_items.popleft()
+            advance += money
+
+    return repay_days, (open_items[0][0] if open_items else None)
+
+
+def days_pending(conn: sqlite3.Connection, customer_id: int, today: date | None = None) -> int | None:
+    """Age in days of the oldest udhaar that is not yet fully paid, or None."""
+    _, oldest_open = fifo_settle(ledger_rows(conn, customer_id))
+    if oldest_open is None:
+        return None
+    return ((today or date.today()) - oldest_open).days
 
 
 def _validate_amount(amount: int) -> None:
@@ -199,11 +234,11 @@ def add_payment(conn: sqlite3.Connection, customer_name: str, amount: int, note:
         customer = find_customer(conn, customer_name)
         balance = get_balance(conn, customer["id"])
         if balance == 0:
-            raise InvalidAmount(f"{customer['name']} has no pending udhaar.", balance=0)
+            raise InvalidAmount(f"{customer['name']} has no pending udhaar.", balance=0, customer=customer["name"])
         if amount > balance:
             raise InvalidAmount(
                 f"Payment of Rs {amount} is more than {customer['name']}'s pending Rs {balance}.",
-                balance=balance,
+                balance=balance, customer=customer["name"],
             )
         entry = _insert_entry(conn, customer["id"], "payment", amount, note)
 
@@ -214,6 +249,18 @@ def add_payment(conn: sqlite3.Connection, customer_name: str, amount: int, note:
         "customer": summary,
         "entry": entry,
     }
+
+
+def record_received_payment(conn: sqlite3.Connection, customer_id: int, amount: int, note: str) -> dict:
+    """Record money that has ALREADY been received (e.g. a verified UPI webhook).
+
+    Unlike add_payment, this does not refuse an amount above the balance:
+    the money is already in the shop's account, and the ledger must record
+    what actually happened. A negative balance then means an advance.
+    The caller manages the transaction.
+    """
+    _validate_amount(amount)
+    return _insert_entry(conn, customer_id, "payment", amount, note)
 
 
 # -------------------------------------------------------------- queries ---
