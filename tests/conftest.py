@@ -10,6 +10,10 @@ def temp_db(tmp_path, monkeypatch):
     """Every test gets its own empty SQLite file, so tests never touch udhaar.db."""
     db_path = str(tmp_path / "test.db")
     monkeypatch.setenv("DB_PATH", db_path)
+    # Tests must never call the real Gemini API (even if .env has a key).
+    # Agent tests that need Gemini replace ask_gemini with a fake.
+    monkeypatch.delenv("GEMINI_API_KEY", raising=False)
+    monkeypatch.setenv("WEBHOOK_SECRET", "test-secret")
     return db_path
 
 

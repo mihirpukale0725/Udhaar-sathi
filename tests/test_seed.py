@@ -46,14 +46,19 @@ def test_no_customer_has_negative_balance(conn):
 
 
 def test_sales_cover_30_days_within_shop_hours(conn):
-    days = conn.execute("SELECT COUNT(DISTINCT date(created_at)) FROM sales").fetchone()[0]
-    assert days == SALES_DAYS
+    past_days = conn.execute(
+        "SELECT COUNT(DISTINCT date(created_at)) FROM sales WHERE date(created_at) < date('now', 'localtime')"
+    ).fetchone()[0]
+    assert past_days == SALES_DAYS
+    in_future = conn.execute("SELECT COUNT(*) FROM sales WHERE created_at > datetime('now', 'localtime')").fetchone()[0]
+    assert in_future == 0
     hours = {r[0] for r in conn.execute("SELECT DISTINCT CAST(strftime('%H', created_at) AS INTEGER) FROM sales")}
     assert min(hours) >= 7 and max(hours) <= 21
 
 
 def test_sunday_evening_is_busier_than_weekday_evening(conn):
     # strftime('%w'): 0 = Sunday ... 6 = Saturday. Compare average sales per evening (5-10 PM).
+    # Today is excluded because its evening may not have happened yet.
     def avg_evening_sales(weekday_condition: str) -> float:
         return conn.execute(
             f"""
@@ -61,6 +66,7 @@ def test_sunday_evening_is_busier_than_weekday_evening(conn):
                 SELECT date(created_at) AS d, COUNT(*) AS n FROM sales
                 WHERE CAST(strftime('%H', created_at) AS INTEGER) >= 17
                   AND {weekday_condition}
+                  AND date(created_at) < date('now', 'localtime')
                 GROUP BY d
             )
             """

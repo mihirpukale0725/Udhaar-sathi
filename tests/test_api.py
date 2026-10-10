@@ -88,3 +88,62 @@ def test_get_unknown_customer_gives_404(client):
     r = client.get("/customer/999")
     assert r.status_code == 404
     assert r.json()["error"] == "customer_not_found"
+
+
+def test_command_endpoint(client):
+    r = client.post("/command", json={"text": "Ramesh ko 500 udhaar diya", "lang": "hi-IN"})
+    assert r.status_code == 200
+    assert r.json() == {
+        "reply": "Ramesh Patil ko ₹500 udhaar likh diya. Kul baaki ₹500.",
+        "tool_called": "add_udhaar",
+        "args": {"customer_name": "ramesh", "amount": 500, "note": ""},
+        "brain": "rules",
+    }
+
+
+def test_command_lang_defaults_and_is_validated(client):
+    assert client.post("/command", json={"text": "aaj kitna aaya"}).status_code == 200
+    r = client.post("/command", json={"text": "aaj kitna aaya", "lang": "fr-FR"})
+    assert r.status_code == 422
+    assert r.json()["detail"].startswith("lang:")
+
+
+# ----------------------------------------------------------- dashboard ---
+
+def test_index_serves_dashboard(client):
+    r = client.get("/")
+    assert r.status_code == 200
+    assert "text/html" in r.headers["content-type"]
+    assert "Udhaar" in r.text and "webkitSpeechRecognition" in r.text
+
+
+def test_summary(client):
+    client.post("/udhaar", json={"customer_name": "Ramesh", "amount": 500})
+    client.post("/payment", json={"customer_name": "Ramesh", "amount": 200})
+    body = client.get("/summary").json()
+    assert body["udhaar_given"] == 500
+    assert body["payments_received"] == 200
+    assert body["total_pending"] == 300
+    assert client.get("/summary?period=year").status_code == 422
+
+
+def test_activity_newest_first(client):
+    client.post("/udhaar", json={"customer_name": "Ramesh", "amount": 500, "note": "atta"})
+    client.post("/payment", json={"customer_name": "Ramesh", "amount": 200})
+    items = client.get("/activity").json()
+    assert [(i["type"], i["amount"]) for i in items] == [("payment", 200), ("udhaar", 500)]
+    assert items[1]["customer_name"] == "Ramesh Patil" and items[1]["note"] == "atta"
+
+
+def test_remind_button_by_id(client):
+    client.post("/udhaar", json={"customer_name": "Suresh", "amount": 400})
+    r = client.post("/customer/3/remind")
+    assert r.status_code == 200
+    assert r.json()["reply"] == "Suresh Gupta ko ₹400 ka reminder bhej diya."
+    assert "/pay/" in r.json()["link"]
+    assert client.get("/messages").json()[0]["kind"] == "reminder"
+
+
+def test_remind_button_errors(client):
+    assert client.post("/customer/2/remind").status_code == 400    # Sunita owes nothing
+    assert client.post("/customer/999/remind").status_code == 404
