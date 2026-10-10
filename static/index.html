@@ -1,0 +1,760 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Udhaar Saathi</title>
+<style>
+  /* ------------------------------------------------------------ tokens --- */
+  :root {
+    --navy: #002e6e;          /* Paytm-like navy: header, headings */
+    --sky: #00b9f1;           /* Paytm-like sky blue: accents */
+    --blue: #1d6fe0;          /* buttons + chart bars (passes contrast on white) */
+    --blue-dark: #1557b0;
+    --bg: #f3f6fb;
+    --card: #ffffff;
+    --ink: #1d2433;
+    --muted: #667085;
+    --line: #e4e8ef;
+    --good: #14a44d;          /* status colors: always shown WITH a label */
+    --warn: #b86e00;
+    --bad: #d92d20;
+    --radius: 14px;
+    --shadow: 0 1px 3px rgba(16, 24, 40, .06), 0 1px 2px rgba(16, 24, 40, .04);
+    color-scheme: light;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--ink);
+         font: 15px/1.45 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; }
+  button { font: inherit; cursor: pointer; }
+  h2 { font-size: 15px; margin: 0 0 12px; color: var(--navy); }
+
+  /* ------------------------------------------------------------ layout --- */
+  header { background: var(--navy); color: #fff; padding: 12px 16px; }
+  .header-inner { max-width: 1280px; margin: 0 auto; display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+  .logo { font-weight: 800; font-size: 20px; }
+  .logo span { color: var(--sky); }
+  .tagline { opacity: .8; font-size: 13px; }
+  .demo-pill { margin-left: auto; background: rgba(255,255,255,.12); border-radius: 999px; padding: 4px 10px; font-size: 12px; }
+
+  .layout { max-width: 1280px; margin: 0 auto; padding: 16px; display: grid;
+            grid-template-columns: minmax(0, 1fr) 360px; gap: 16px; align-items: start; }
+  .card { background: var(--card); border-radius: var(--radius); box-shadow: var(--shadow); padding: 16px; }
+  .stack > * + * { margin-top: 16px; }
+
+  /* ------------------------------------------------------- stat cards --- */
+  .stats { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; }
+  .stat { padding: 14px; }
+  .stat .label { color: var(--muted); font-size: 12px; text-transform: uppercase; letter-spacing: .03em; }
+  .stat .value { font-size: 24px; font-weight: 800; color: var(--navy); margin-top: 4px; font-variant-numeric: tabular-nums; }
+  .stat .sub { color: var(--muted); font-size: 12px; }
+
+  /* ------------------------------------------------------- voice box --- */
+  .voice-row { display: flex; gap: 12px; align-items: center; }
+  .mic { flex: none; width: 64px; height: 64px; border-radius: 50%; border: 0; background: var(--blue);
+         color: #fff; display: grid; place-items: center; box-shadow: 0 4px 12px rgba(29,111,224,.35); }
+  .mic:hover { background: var(--blue-dark); }
+  .mic.listening { background: var(--bad); animation: pulse 1.2s infinite; }
+  @keyframes pulse { 0% { box-shadow: 0 0 0 0 rgba(217,45,32,.45); } 100% { box-shadow: 0 0 0 16px rgba(217,45,32,0); } }
+  .voice-main { flex: 1; min-width: 0; }
+  .input-row { display: flex; gap: 8px; }
+  .input-row input { flex: 1; min-width: 0; padding: 11px 12px; border: 1px solid var(--line); border-radius: 10px; font: inherit; }
+  .input-row input:focus, select:focus { outline: 2px solid var(--sky); border-color: transparent; }
+  .btn { border: 0; border-radius: 10px; padding: 10px 16px; background: var(--blue); color: #fff; font-weight: 600; }
+  .btn:hover { background: var(--blue-dark); }
+  .btn:disabled { opacity: .55; cursor: wait; }
+  .btn.small { padding: 6px 12px; font-size: 13px; }
+  .voice-opts { display: flex; gap: 12px; align-items: center; margin-top: 8px; font-size: 13px; color: var(--muted); flex-wrap: wrap; }
+  select { font: inherit; padding: 4px 8px; border: 1px solid var(--line); border-radius: 8px; background: #fff; }
+  .chips { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px; }
+  .chip { border: 1px solid #cfe3fb; background: #eef6ff; color: var(--navy); border-radius: 999px; padding: 5px 12px; font-size: 13px; }
+  .chip:hover { background: #dcecff; }
+
+  .reply { margin-top: 14px; padding: 12px 14px; border-radius: 12px; background: #f0f8ff; border-left: 4px solid var(--sky); }
+  .reply[hidden] { display: none; }
+  .reply-text { font-size: 16px; font-weight: 600; }
+  .reply-meta { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 8px; font-size: 12px; align-items: center; }
+  .badge { border-radius: 6px; padding: 2px 8px; background: #fff; border: 1px solid var(--line); }
+  .badge.gemini { border-color: #b9d4fb; color: var(--blue-dark); }
+  .badge.rules { border-color: #e5d4b0; color: var(--warn); }
+  code { font-family: ui-monospace, Consolas, monospace; font-size: 12px; color: var(--muted); overflow-wrap: anywhere; }
+
+  /* ------------------------------------------------------------- tabs --- */
+  .tabs { display: flex; gap: 4px; border-bottom: 1px solid var(--line); margin: -4px -4px 16px; }
+  .tab { border: 0; background: none; padding: 10px 14px; color: var(--muted); font-weight: 600; border-bottom: 3px solid transparent; }
+  .tab[aria-selected="true"] { color: var(--blue); border-bottom-color: var(--blue); }
+  .panel[hidden] { display: none; }
+
+  /* ----------------------------------------------------------- khata --- */
+  .table-wrap { overflow-x: auto; }
+  table { width: 100%; border-collapse: collapse; font-size: 14px; }
+  th { text-align: left; font-size: 12px; color: var(--muted); font-weight: 600; padding: 8px; border-bottom: 1px solid var(--line); }
+  td { padding: 10px 8px; border-bottom: 1px solid var(--line); vertical-align: middle; }
+  td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; }
+  .name { font-weight: 600; }
+  .phone, .muted { color: var(--muted); font-size: 12px; }
+  .late { color: var(--bad); font-weight: 700; }
+  .trust { display: flex; align-items: center; gap: 8px; min-width: 150px; }
+  .track { flex: 1; height: 8px; background: #edf0f5; border-radius: 4px; overflow: hidden; }
+  .fill { height: 100%; border-radius: 4px; }
+  .fill.good { background: var(--good); } .fill.ok { background: var(--warn); } .fill.risky { background: var(--bad); }
+  .trust-text { font-size: 12px; color: var(--muted); white-space: nowrap; width: 72px; }
+  .empty { color: var(--muted); text-align: center; padding: 24px; }
+
+  /* -------------------------------------------------------- insights --- */
+  .insight-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; margin-top: 16px; }
+  .insight { border: 1px solid var(--line); border-radius: 12px; padding: 12px; }
+  .insight h3 { margin: 0 0 6px; font-size: 13px; color: var(--muted); font-weight: 600; }
+  .insight .big { font-size: 22px; font-weight: 800; color: var(--navy); }
+  .insight ul { margin: 0; padding: 0; list-style: none; font-size: 14px; }
+  .insight li { display: flex; justify-content: space-between; gap: 8px; padding: 3px 0; }
+  .insight li span:last-child { color: var(--muted); white-space: nowrap; }
+  .up { color: var(--good); font-weight: 700; } .down { color: var(--bad); font-weight: 700; }
+  .chart-box { position: relative; }
+  canvas { width: 100%; height: 220px; display: block; }
+  .tooltip { position: absolute; pointer-events: none; background: var(--ink); color: #fff; font-size: 12px;
+             padding: 6px 8px; border-radius: 6px; white-space: nowrap; transform: translate(-50%, -100%); }
+  .tooltip[hidden] { display: none; }
+  details { margin-top: 8px; font-size: 13px; }
+  summary { cursor: pointer; color: var(--blue); }
+
+  /* -------------------------------------------------------- activity --- */
+  .activity li { display: flex; gap: 10px; align-items: center; padding: 10px 0; border-bottom: 1px solid var(--line); list-style: none; }
+  .activity { margin: 0; padding: 0; }
+  .icon { flex: none; width: 32px; height: 32px; border-radius: 50%; display: grid; place-items: center; font-size: 15px; }
+  .icon.udhaar { background: #fdecea; } .icon.payment { background: #e7f6ec; }
+  .activity .what { flex: 1; min-width: 0; }
+  .activity .when { color: var(--muted); font-size: 12px; white-space: nowrap; }
+
+  /* ---------------------------------------------------- phone panel --- */
+  .phone-frame { position: sticky; top: 16px; background: #111; border-radius: 28px; padding: 10px;
+                 box-shadow: 0 10px 30px rgba(0,0,0,.18); }
+  .phone-screen { border-radius: 20px; overflow: hidden; display: flex; flex-direction: column; height: calc(100vh - 120px); min-height: 460px; max-height: 760px; }
+  .wa-header { background: #075e54; color: #fff; padding: 12px 14px; display: flex; gap: 10px; align-items: center; }
+  .wa-avatar { width: 34px; height: 34px; border-radius: 50%; background: #25d366; display: grid; place-items: center; font-weight: 800; }
+  .wa-title { font-weight: 600; } .wa-sub { font-size: 12px; opacity: .8; }
+  .wa-chat { flex: 1; overflow-y: auto; background: #e5ddd5; padding: 12px 10px; }
+  .bubble { background: #dcf8c6; border-radius: 10px 0 10px 10px; padding: 8px 10px; margin: 0 0 10px auto; max-width: 88%;
+            box-shadow: 0 1px 1px rgba(0,0,0,.08); font-size: 14px; overflow-wrap: anywhere; }
+  .bubble.thank_you { background: #fff; border-radius: 0 10px 10px 10px; margin: 0 auto 10px 0; }
+  .bubble .to { font-size: 12px; font-weight: 700; color: #075e54; margin-bottom: 2px; }
+  .bubble .time { text-align: right; font-size: 11px; color: #667781; margin-top: 2px; }
+  .bubble a { color: #027eb5; }
+  .wa-empty { text-align: center; color: #667781; font-size: 13px; margin-top: 40px; }
+
+  .toast { position: fixed; left: 50%; bottom: 20px; transform: translateX(-50%); background: var(--ink); color: #fff;
+           padding: 10px 16px; border-radius: 10px; font-size: 14px; box-shadow: 0 6px 20px rgba(0,0,0,.2); z-index: 10; max-width: calc(100% - 32px); }
+  .toast[hidden] { display: none; }
+
+  /* ---------------------------------------------------------- mobile --- */
+  @media (max-width: 960px) {
+    .layout { grid-template-columns: minmax(0, 1fr); }
+    .phone-frame { position: static; }
+    .phone-screen { height: 520px; }
+  }
+  @media (max-width: 640px) {
+    .stats { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    .insight-grid { grid-template-columns: minmax(0, 1fr); }
+    .stat .value { font-size: 20px; }
+    .tagline { display: none; }
+    /* Compact khata table so the Remind button fits on a phone */
+    td, th { padding-left: 4px; padding-right: 4px; }
+    .phone { display: none; }
+    .trust { min-width: 0; }
+    .track { flex: none; width: 36px; }
+    .trust-text { width: auto; }
+    .voice-row { align-items: flex-start; }
+    .mic { width: 52px; height: 52px; }
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="header-inner">
+    <div class="logo">Udhaar <span>Saathi</span></div>
+    <div class="tagline">Voice khata for your kirana</div>
+    <div class="demo-pill">Demo: WhatsApp &amp; UPI are simulated</div>
+  </div>
+</header>
+
+<main class="layout">
+  <!-- =============================================== LEFT: dashboard === -->
+  <div class="stack">
+
+    <section class="stats" aria-label="Today's summary">
+      <div class="card stat"><div class="label">Today's UPI sales</div><div class="value" id="statSales">-</div><div class="sub" id="statBills">&nbsp;</div></div>
+      <div class="card stat"><div class="label">Udhaar given today</div><div class="value" id="statGiven">-</div></div>
+      <div class="card stat"><div class="label">Received today</div><div class="value" id="statReceived">-</div></div>
+      <div class="card stat"><div class="label">Total pending</div><div class="value" id="statPending">-</div></div>
+    </section>
+
+    <section class="card" aria-label="Voice command">
+      <h2>Boliye ya likhiye</h2>
+      <div class="voice-row">
+        <button class="mic" id="mic" title="Tap and speak" aria-label="Start voice input">
+          <svg width="26" height="26" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+            <path d="M12 14a3 3 0 0 0 3-3V5a3 3 0 0 0-6 0v6a3 3 0 0 0 3 3zm5-3a5 5 0 0 1-10 0H5a7 7 0 0 0 6 6.92V21h2v-3.08A7 7 0 0 0 19 11h-2z"/>
+          </svg>
+        </button>
+        <div class="voice-main">
+          <form class="input-row" id="commandForm">
+            <input id="commandInput" autocomplete="off" placeholder="e.g. Ramesh ko 500 udhaar diya" aria-label="Command">
+            <button class="btn" id="sendBtn" type="submit">Send</button>
+          </form>
+          <div class="voice-opts">
+            <label>Language
+              <select id="lang">
+                <option value="hi-IN">Hindi (hi-IN)</option>
+                <option value="mr-IN">Marathi (mr-IN)</option>
+                <option value="en-IN">English (en-IN)</option>
+              </select>
+            </label>
+            <label><input type="checkbox" id="speakToggle" checked> Speak replies</label>
+            <span id="voiceHint"></span>
+          </div>
+        </div>
+      </div>
+
+      <div class="chips" id="chips"></div>
+
+      <div class="reply" id="reply" hidden aria-live="polite">
+        <div class="reply-text" id="replyText"></div>
+        <div class="reply-meta">
+          <span class="badge" id="replyBrain"></span>
+          <span class="badge" id="replyTool"></span>
+          <code id="replyArgs"></code>
+        </div>
+      </div>
+    </section>
+
+    <section class="card">
+      <div class="tabs" role="tablist">
+        <button class="tab" role="tab" aria-selected="true" data-tab="khata">Khata</button>
+        <button class="tab" role="tab" aria-selected="false" data-tab="insights">Insights</button>
+        <button class="tab" role="tab" aria-selected="false" data-tab="activity">Activity</button>
+      </div>
+
+      <!-- Khata tab -->
+      <div class="panel" id="panel-khata" role="tabpanel">
+        <div class="table-wrap">
+          <table>
+            <thead><tr>
+              <th>Customer</th><th class="num">Balance</th><th class="num">Days pending</th><th>Trust score</th><th></th>
+            </tr></thead>
+            <tbody id="khataBody"></tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- Insights tab -->
+      <div class="panel" id="panel-insights" role="tabpanel" hidden>
+        <h2>Daily UPI sales, last 30 days</h2>
+        <div class="chart-box">
+          <canvas id="salesChart" role="img" aria-label="Bar chart of daily UPI sales for the last 30 days"></canvas>
+          <div class="tooltip" id="chartTip" hidden></div>
+        </div>
+        <details>
+          <summary>Show as table</summary>
+          <div class="table-wrap"><table><thead><tr><th>Date</th><th class="num">Sales</th><th class="num">Bills</th></tr></thead>
+            <tbody id="salesTable"></tbody></table></div>
+        </details>
+        <div class="insight-grid" id="insightCards"></div>
+      </div>
+
+      <!-- Activity tab -->
+      <div class="panel" id="panel-activity" role="tabpanel" hidden>
+        <ul class="activity" id="activityList"></ul>
+      </div>
+    </section>
+  </div>
+
+  <!-- ============================================ RIGHT: customer phone === -->
+  <aside class="phone-frame" aria-label="Customer phone (simulated WhatsApp)">
+    <div class="phone-screen">
+      <div class="wa-header">
+        <div class="wa-avatar">₹</div>
+        <div><div class="wa-title">Customer's WhatsApp</div><div class="wa-sub">Simulated: messages from the shop</div></div>
+      </div>
+      <div class="wa-chat" id="chat"><div class="wa-empty">No messages yet. Try "sabko reminder bhejo".</div></div>
+    </div>
+  </aside>
+</main>
+
+<div class="toast" id="toast" hidden></div>
+
+<script>
+/* =====================================================================
+   Udhaar Saathi dashboard. Plain JavaScript, no build step.
+
+   Security note: everything from the server (names, notes, messages) is
+   inserted with textContent, never innerHTML, so a customer called
+   "<script>..." shows up as text instead of running.
+   ===================================================================== */
+
+const $ = (id) => document.getElementById(id);
+
+const EXAMPLES = [
+  "Ramesh ko 500 udhaar diya",
+  "Kavita ne 1000 diye",
+  "Suresh ka kitna baaki hai?",
+  "Ganesh ko reminder bhejo",
+  "sabko reminder bhejo",
+  "aaj kitna aaya?",
+  "kaun kaun baaki hai",
+];
+
+// ---------------------------------------------------------------- helpers
+
+/** Create an element: el("td", {className: "num"}, "₹500", otherNode) */
+function el(tag, props = {}, ...children) {
+  const node = Object.assign(document.createElement(tag), props);
+  for (const child of children) {
+    if (child == null) continue;
+    node.append(child instanceof Node ? child : String(child));
+  }
+  return node;
+}
+
+/** Read a color from the CSS :root tokens, so CSS and canvas share one palette. */
+const token = (name) => getComputedStyle(document.documentElement).getPropertyValue(name).trim();
+
+/** 123456 -> "₹1,23,456" (Indian digit grouping) */
+const rupees = (n) => "₹" + Number(n).toLocaleString("en-IN");
+
+/** Call our API; throws an Error with the server's "detail" message on failure. */
+async function api(path, options = {}) {
+  const res = await fetch(path, {
+    ...options,
+    headers: { "Content-Type": "application/json", ...(options.headers || {}) },
+  });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(data.detail || `Request failed (${res.status})`);
+  return data;
+}
+
+let toastTimer;
+function toast(message) {
+  const t = $("toast");
+  t.textContent = message;
+  t.hidden = false;
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => (t.hidden = true), 3500);
+}
+
+/** "2026-10-10 18:05:00" -> Date (stored timestamps are local time) */
+const parseTs = (ts) => new Date(ts.replace(" ", "T"));
+
+function timeAgo(ts) {
+  const minutes = Math.round((Date.now() - parseTs(ts)) / 60000);
+  if (minutes < 1) return "just now";
+  if (minutes < 60) return `${minutes} min ago`;
+  const hours = Math.round(minutes / 60);
+  if (hours < 24) return `${hours} hr ago`;
+  return `${Math.round(hours / 24)} days ago`;
+}
+
+// --------------------------------------------------------- summary cards
+
+async function loadSummary() {
+  const s = await api("/summary?period=today");
+  $("statSales").textContent = rupees(s.sales_total);
+  $("statBills").textContent = `${s.sales_count} bills`;
+  $("statGiven").textContent = rupees(s.udhaar_given);
+  $("statReceived").textContent = rupees(s.payments_received);
+  $("statPending").textContent = rupees(s.total_pending);
+}
+
+// ------------------------------------------------------------ khata tab
+
+const LATE_AFTER_DAYS = 15;
+
+function trustCell(score) {
+  // Color AND a word, so the meaning never depends on color alone.
+  const [cls, word] = score >= 80 ? ["good", "Trusted"] : score >= 50 ? ["ok", "Okay"] : ["risky", "Risky"];
+  const fill = el("div", { className: `fill ${cls}` });
+  fill.style.width = `${score}%`;
+  return el("div", { className: "trust", title: `Trust score ${score}/100` },
+    el("div", { className: "track" }, fill),
+    el("span", { className: "trust-text" }, `${score} · ${word}`));
+}
+
+async function loadKhata() {
+  const { customers, total_pending } = await api("/khata");
+  const body = $("khataBody");
+  body.replaceChildren();
+
+  if (customers.length === 0) {
+    body.append(el("tr", {}, el("td", { colSpan: 5, className: "empty" }, "Kisi ka udhaar baaki nahi hai 🎉")));
+    return;
+  }
+  for (const c of customers) {
+    const late = c.days_pending > LATE_AFTER_DAYS;
+    const remind = el("button", { className: "btn small", textContent: "Remind" });
+    remind.onclick = () => remindCustomer(c.id, remind);
+
+    body.append(el("tr", {},
+      el("td", {}, el("div", { className: "name" }, c.name), el("div", { className: "phone" }, c.phone || "")),
+      el("td", { className: "num" }, rupees(c.balance)),
+      el("td", { className: "num" + (late ? " late" : "") }, `${late ? "⚠ " : ""}${c.days_pending ?? "-"}`),
+      el("td", {}, trustCell(c.trust_score)),
+      el("td", { className: "num" }, remind)));
+  }
+  body.append(el("tr", {},
+    el("td", { className: "name" }, "Total"),
+    el("td", { className: "num name" }, rupees(total_pending)),
+    el("td", { colSpan: 3 })));
+}
+
+async function remindCustomer(id, button) {
+  button.disabled = true;
+  try {
+    const r = await api(`/customer/${id}/remind`, { method: "POST" });
+    toast(r.reply);
+    speak(r.reply);
+    pollMessages();
+  } catch (err) {
+    toast("❌ " + err.message);
+  } finally {
+    button.disabled = false;
+  }
+}
+
+// ---------------------------------------------------------- activity tab
+
+async function loadActivity() {
+  const items = await api("/activity?limit=30");
+  const list = $("activityList");
+  list.replaceChildren();
+  if (items.length === 0) list.append(el("li", { className: "empty" }, "No activity yet."));
+
+  for (const a of items) {
+    const isUdhaar = a.type === "udhaar";
+    const text = isUdhaar ? `Gave ${rupees(a.amount)} udhaar` : `Received ${rupees(a.amount)}`;
+    list.append(el("li", {},
+      el("div", { className: `icon ${a.type}`, ariaHidden: "true" }, isUdhaar ? "📝" : "💰"),
+      el("div", { className: "what" },
+        el("div", { className: "name" }, a.customer_name),
+        el("div", { className: "muted" }, text + (a.note ? ` · ${a.note}` : ""))),
+      el("div", { className: "when", title: a.created_at }, timeAgo(a.created_at))));
+  }
+}
+
+// ---------------------------------------------------------- insights tab
+
+let chartDays = [];
+let hoverIndex = -1;
+
+function niceMax(value) {
+  // Round the axis max up to 1, 2, 2.5 or 5 x 10^n so gridlines land on clean numbers.
+  const step = value / 4;
+  const pow = 10 ** Math.floor(Math.log10(step));
+  const nice = [1, 2, 2.5, 5, 10].find((m) => m * pow >= step) * pow;
+  return nice * 4;
+}
+
+const shortRupees = (v) => (v >= 1000 ? `₹${+(v / 1000).toFixed(1)}k` : `₹${v}`);
+const dayLabel = (iso) => new Date(iso + "T00:00").toLocaleDateString("en-IN", { day: "numeric", month: "short" });
+
+function chartGeometry(canvas) {
+  const width = canvas.clientWidth, height = canvas.clientHeight;
+  const pad = { left: 52, right: 8, top: 10, bottom: 26 };
+  const plotW = width - pad.left - pad.right;
+  const plotH = height - pad.top - pad.bottom;
+  const slot = plotW / Math.max(chartDays.length, 1);
+  return { width, height, pad, plotW, plotH, slot };
+}
+
+function drawChart() {
+  const canvas = $("salesChart");
+  if (canvas.clientWidth === 0) return; // tab hidden
+  const dpr = window.devicePixelRatio || 1;
+  const g = chartGeometry(canvas);
+  canvas.width = g.width * dpr;
+  canvas.height = g.height * dpr;
+  const ctx = canvas.getContext("2d");
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0); // sharp on high-DPI screens
+  ctx.clearRect(0, 0, g.width, g.height);
+
+  const max = niceMax(Math.max(1, ...chartDays.map((d) => d.total)));
+  ctx.font = "11px system-ui, sans-serif";
+
+  // Recessive gridlines + y-axis labels
+  ctx.textAlign = "right";
+  ctx.textBaseline = "middle";
+  for (let i = 0; i <= 4; i++) {
+    const y = g.pad.top + g.plotH - (g.plotH * i) / 4;
+    ctx.strokeStyle = i === 0 ? "#c9d0db" : "#edf0f5";
+    ctx.beginPath(); ctx.moveTo(g.pad.left, y); ctx.lineTo(g.width - g.pad.right, y); ctx.stroke();
+    ctx.fillStyle = token("--muted");
+    ctx.fillText(shortRupees((max * i) / 4), g.pad.left - 8, y);
+  }
+
+  // Bars: 2px gap between them, 4px rounded top, flat on the baseline.
+  const gap = 2;
+  const barW = Math.max(2, g.slot - gap);
+  chartDays.forEach((d, i) => {
+    const h = (g.plotH * d.total) / max;
+    const x = g.pad.left + i * g.slot + gap / 2;
+    const y = g.pad.top + g.plotH - h;
+    const isToday = i === chartDays.length - 1;
+    ctx.fillStyle = i === hoverIndex ? token("--blue-dark") : token("--blue");
+    ctx.globalAlpha = isToday && i !== hoverIndex ? 0.55 : 1; // today is still in progress
+    ctx.beginPath();
+    ctx.roundRect(x, y, barW, h, [Math.min(4, barW / 2), Math.min(4, barW / 2), 0, 0]);
+    ctx.fill();
+    ctx.globalAlpha = 1;
+  });
+
+  // X-axis labels: one per week, counted back from today so today is always labelled.
+  ctx.textAlign = "center";
+  ctx.textBaseline = "top";
+  ctx.fillStyle = token("--muted");
+  chartDays.forEach((d, i) => {
+    if ((chartDays.length - 1 - i) % 7 !== 0) return;
+    const label = i === chartDays.length - 1 ? "Today" : dayLabel(d.date);
+    ctx.fillText(label, g.pad.left + i * g.slot + g.slot / 2, g.pad.top + g.plotH + 8);
+  });
+}
+
+function onChartHover(event) {
+  const canvas = $("salesChart");
+  const g = chartGeometry(canvas);
+  const rect = canvas.getBoundingClientRect();
+  const x = event.clientX - rect.left;
+  // Hit target is the whole column, not just the bar, so small bars are easy to hover.
+  const i = Math.floor((x - g.pad.left) / g.slot);
+  const tip = $("chartTip");
+
+  if (i < 0 || i >= chartDays.length) {
+    hoverIndex = -1; tip.hidden = true; drawChart(); return;
+  }
+  if (i !== hoverIndex) { hoverIndex = i; drawChart(); }
+  const d = chartDays[i];
+  const when = i === chartDays.length - 1 ? "Today (so far)" : dayLabel(d.date);
+  tip.textContent = `${when} · ${rupees(d.total)} · ${d.bills} bills`;
+  tip.style.left = `${Math.min(Math.max(g.pad.left + i * g.slot + g.slot / 2, 80), g.width - 80)}px`;
+  tip.style.top = `${g.pad.top + 4}px`;
+  tip.hidden = false;
+}
+
+function insightCard(title, ...content) {
+  return el("div", { className: "insight" }, el("h3", {}, title), ...content);
+}
+
+function insightList(items, render, emptyText) {
+  if (items.length === 0) return el("div", { className: "muted" }, emptyText);
+  return el("ul", {}, ...items.map((item) => {
+    const [left, right] = render(item);
+    return el("li", {}, el("span", {}, left), el("span", {}, right));
+  }));
+}
+
+async function loadInsights() {
+  const data = await api("/insights");
+
+  // Chart + its table view
+  chartDays = data.daily_sales;
+  drawChart();
+  $("salesTable").replaceChildren(...[...chartDays].reverse().map((d) =>
+    el("tr", {}, el("td", {}, d.date), el("td", { className: "num" }, rupees(d.total)), el("td", { className: "num" }, d.bills))));
+
+  // Cards
+  const w = data.sales_week;
+  const change = w.change_pct == null
+    ? el("span", {}, "no sales last week")
+    : el("span", { className: w.change_pct >= 0 ? "up" : "down" },
+        `${w.change_pct >= 0 ? "▲" : "▼"} ${Math.abs(w.change_pct)}% vs last week`);
+  const peak = data.peak.day ? `${data.peak.day}s, ${data.peak.hour_label}` : "Not enough data";
+
+  $("insightCards").replaceChildren(
+    insightCard("This week's UPI sales",
+      el("div", { className: "big" }, rupees(w.this_week)), change,
+      el("div", { className: "muted" }, `Last week: ${rupees(w.last_week)}`)),
+    insightCard("Busiest time", el("div", { className: "big" }, peak),
+      el("div", { className: "muted" }, "Keep extra stock and help ready")),
+    insightCard(`Stuck udhaar (${LATE_AFTER_DAYS}+ days)`,
+      insightList(data.stuck_udhaar, (c) => [c.name, `${rupees(c.balance)} · ${c.days_pending} days`], "Nothing stuck 🎉")),
+    insightCard("Regulars missing this week",
+      insightList(data.regulars_missing, (c) => [c.name, `last seen ${c.days_since} days ago`], "All regulars came this week")),
+    insightCard("Trusted customers (score 80+)",
+      insightList(data.trusted_customers, (c) => [c.name, `${c.trust_score}/100`], "No trusted customers yet")),
+  );
+}
+
+// ------------------------------------------------------------------ tabs
+
+let activeTab = "khata";
+const TAB_LOADERS = { khata: loadKhata, insights: loadInsights, activity: loadActivity };
+
+function showTab(name) {
+  activeTab = name;
+  history.replaceState(null, "", `#${name}`); // the URL remembers the tab (e.g. /#insights)
+  document.querySelectorAll(".tab").forEach((t) => t.setAttribute("aria-selected", t.dataset.tab === name));
+  document.querySelectorAll(".panel").forEach((p) => (p.hidden = p.id !== `panel-${name}`));
+  TAB_LOADERS[name]().catch((err) => toast("❌ " + err.message));
+}
+
+/** Refresh the cards and the visible tab after anything changes. */
+function refresh() {
+  loadSummary().catch((err) => toast("❌ " + err.message));
+  TAB_LOADERS[activeTab]().catch((err) => toast("❌ " + err.message));
+}
+
+// ---------------------------------------------------- commands + replies
+
+async function sendCommand(text) {
+  text = text.trim();
+  if (!text) return;
+  $("commandInput").value = text;
+  $("sendBtn").disabled = true;
+  try {
+    const r = await api("/command", { method: "POST", body: JSON.stringify({ text, lang: $("lang").value }) });
+    showReply(r);
+    speak(r.reply);
+    refresh();
+    pollMessages(); // reminders show up on the phone right away
+  } catch (err) {
+    toast("❌ " + err.message);
+  } finally {
+    $("sendBtn").disabled = false;
+  }
+}
+
+function showReply(r) {
+  $("reply").hidden = false;
+  $("replyText").textContent = r.reply;
+  const brain = $("replyBrain");
+  brain.textContent = r.brain === "gemini" ? "🤖 Gemini" : "📏 Rules (offline)";
+  brain.className = `badge ${r.brain}`;
+  $("replyTool").textContent = r.tool_called ? `tool: ${r.tool_called}` : "no tool";
+  $("replyArgs").textContent = r.tool_called ? JSON.stringify(r.args) : "";
+}
+
+// ------------------------------------------------- voice in (speech-to-text)
+
+const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+let recognition = null;
+
+function toggleMic() {
+  if (!SpeechRecognition) {
+    toast("Voice input needs Chrome or Edge. You can still type.");
+    return;
+  }
+  if (recognition) { recognition.stop(); return; }
+
+  window.speechSynthesis?.cancel(); // don't let the mic hear our own spoken reply
+  recognition = new SpeechRecognition();
+  recognition.lang = $("lang").value;
+  recognition.interimResults = true; // show words while the owner is still speaking
+
+  recognition.onstart = () => {
+    $("mic").classList.add("listening");
+    $("voiceHint").textContent = "Listening… bol dijiye";
+  };
+  recognition.onresult = (event) => {
+    let text = "", done = false;
+    for (const result of event.results) {
+      text += result[0].transcript;
+      done = done || result.isFinal;
+    }
+    $("commandInput").value = text;
+    if (done) sendCommand(text);
+  };
+  recognition.onerror = (event) => {
+    const messages = { "not-allowed": "Microphone permission denied.", "no-speech": "Kuch sunai nahi diya. Try again." };
+    toast(messages[event.error] || `Voice error: ${event.error}`);
+  };
+  recognition.onend = () => {
+    $("mic").classList.remove("listening");
+    $("voiceHint").textContent = "";
+    recognition = null;
+  };
+  recognition.start();
+}
+
+// ------------------------------------------------ voice out (text-to-speech)
+
+function speak(text) {
+  if (!$("speakToggle").checked || !window.speechSynthesis) return;
+  const lang = $("lang").value;
+  const voices = speechSynthesis.getVoices();
+  // Marathi voices are rare; Hindi voices read our Hinglish replies well.
+  const voice = voices.find((v) => v.lang === lang)
+             || voices.find((v) => v.lang === "hi-IN")
+             || voices.find((v) => v.lang.startsWith("en-IN"));
+  const utterance = new SpeechSynthesisUtterance(text);
+  if (voice) { utterance.voice = voice; utterance.lang = voice.lang; }
+  speechSynthesis.cancel(); // stop any reply that is still being read
+  speechSynthesis.speak(utterance);
+}
+
+// ------------------------------------------------ customer phone (polling)
+
+let lastMessageId = null;
+
+/** Message text with links made clickable, built safely (no innerHTML). */
+function messageBody(text) {
+  const span = el("span");
+  text.split(/(https?:\/\/\S+)/).forEach((part, i) => {
+    // split() with a capture group puts the URLs at odd positions
+    span.append(i % 2 ? el("a", { href: part, target: "_blank", rel: "noopener", textContent: part }) : part);
+  });
+  return span;
+}
+
+async function pollMessages() {
+  if (document.hidden) return; // tab in background: don't poll
+  let messages;
+  try {
+    messages = await api("/messages?limit=40");
+  } catch {
+    return; // server restarting; try again on the next tick
+  }
+  const newestId = messages.length ? messages[0].id : 0;
+  if (newestId === lastMessageId) return; // nothing new: skip re-rendering
+
+  // A thank-you that arrived since the last poll means a customer just paid.
+  const isFirstLoad = lastMessageId === null;
+  const paid = messages.filter((m) => m.kind === "thank_you" && m.id > (lastMessageId || 0));
+  lastMessageId = newestId;
+  if (!isFirstLoad && paid.length) {
+    toast(`💰 Payment received from ${paid[0].customer_name}!`);
+    refresh();
+  }
+
+  const chat = $("chat");
+  if (messages.length === 0) return;
+  chat.replaceChildren(...messages.reverse().map((m) =>
+    el("div", { className: `bubble ${m.kind}` },
+      el("div", { className: "to" }, (m.kind === "thank_you" ? "✅ " : "To ") + m.customer_name),
+      messageBody(m.body),
+      el("div", { className: "time" }, parseTs(m.created_at).toLocaleTimeString("en-IN", { hour: "numeric", minute: "2-digit" })))));
+  chat.scrollTop = chat.scrollHeight; // newest at the bottom, like WhatsApp
+}
+
+// ------------------------------------------------------------------ start
+
+$("chips").append(...EXAMPLES.map((text) => {
+  const chip = el("button", { className: "chip", type: "button", textContent: text });
+  chip.onclick = () => sendCommand(text);
+  return chip;
+}));
+$("commandForm").onsubmit = (event) => { event.preventDefault(); sendCommand($("commandInput").value); };
+$("mic").onclick = toggleMic;
+document.querySelectorAll(".tab").forEach((t) => (t.onclick = () => showTab(t.dataset.tab)));
+$("salesChart").addEventListener("mousemove", onChartHover);
+$("salesChart").addEventListener("mouseleave", () => { hoverIndex = -1; $("chartTip").hidden = true; drawChart(); });
+window.addEventListener("resize", () => { clearTimeout(window._resizeTimer); window._resizeTimer = setTimeout(drawChart, 150); });
+window.speechSynthesis?.getVoices(); // some browsers load voices lazily
+
+if (!SpeechRecognition) $("voiceHint").textContent = "Voice needs Chrome/Edge. Typing works everywhere.";
+
+const startTab = location.hash.slice(1);
+showTab(startTab in TAB_LOADERS ? startTab : "khata");
+loadSummary().catch((err) => toast("❌ " + err.message));
+pollMessages();
+setInterval(pollMessages, 2000);
+</script>
+</body>
+</html>
