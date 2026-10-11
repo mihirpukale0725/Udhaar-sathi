@@ -45,6 +45,17 @@ and handles the uncomfortable part (reminders and collection) politely and autom
 | 📈 **Insights** | Week-over-week sales, 30-day chart, stuck udhaar, regulars who stopped coming, peak day/hour |
 | 📱 **Customer phone panel** | A simulated WhatsApp screen showing every message the shop sends |
 
+## Screenshots
+
+### Voice dashboard
+![Dashboard](docs/screenshots/dashboard.png)
+
+### Business insights
+![Insights](docs/screenshots/insights.png)
+
+### Activity log
+![Activity](docs/screenshots/activity.png)
+
 ## Architecture
 
 ```mermaid
